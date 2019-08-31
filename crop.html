@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Image Crop</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<style type="text/css">
+			h1 {
+				margin: 0;
+			}
+			body
+			{
+				margin: 1em;
+				text-align: center;
+			}
+
+			.hidden {
+				display: none;
+			}
+
+			.hidden.has_image {
+				display: inline;
+			}
+
+			input[type=number]{
+				width: 5em;
+			}
+
+			.inline.control {
+				display: inline;
+			}
+			button {
+				background-color: #FFFFFF;
+				border: 1px solid #cccccc;
+				border-radius: 4px;
+			}
+			button:hover {
+				background-color: #cccccc;
+			}
+			button:active {
+				background-color: #999999;
+			}
+			div.section {
+				margin-bottom: 0.5em;
+			}
+			#crop_selection {
+				position: absolute;
+				border: 1px solid blue;
+			}
+			#img_output_container {
+				position: relative;
+				display: inline-block;
+			}
+			nav {
+				margin: 0.5em;
+			}
+			nav a {
+				margin-left: 0.5em;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<h1>
+				Crop Image
+			</h1>
+			<nav>
+			</nav>
+			<div>
+				<div class="section">
+					<label class="label"><strong>Image:</strong> <input class="input" type="file" id="file"></label>
+				</div>
+				<div class="section hidden" id="size_section">
+					<strong>Dimensions:</strong> <span id="size_details"></span>
+				</div>
+				<div class="section">
+					<strong>Start:</strong> 
+					<div class="inline control">
+						<label class="label"><input class="input" type="number" id="X0"></label>,
+						<label class="label"><input class="input" type="number" id="Y0"></label>
+					</div>
+				</div>
+				<div class="section">
+					<strong>End:</strong> 
+					<div class="inline control">
+						<label class="label"><input class="input" type="number" id="X1"></label>,
+						<label class="label"><input class="input" type="number" id="Y1"></label>
+					</div>
+				</div>
+				<div class="section">
+					<div class="inline control"><button class="button flip" id="crop">Crop</button></div>
+				</div>
+				<div class="section">
+					<div class="inline control"><button class="button flip" id="undo">Undo</button></div>
+					<div class="inline control"><button class="button flip" id="redo">Redo</button></div>
+					<div class="inline control"><button class="button flip" id="reset">Reset to original</button></div>
+				</div>
+				<div class="section">
+				</div>
+			</div>
+			<canvas class="canvas_width hidden" id="canvas_input"></canvas>
+			<canvas class="canvas_width hidden" id="canvas_output"></canvas>
+			<div id="img_output_wrapper" class="hidden">
+				<h5>Right click / Long press to save image</h5>
+				<div id="img_output_container">
+					<img class="canvas_width hidden" id="img_output">
+					<div id="crop_selection"></div>
+				</div>
+			</div>
+		</div>
+
+		<script src="/js/jquery-3.3.1.min.js"></script><!-- https://jquery.com/download/ -->
+		<script>
+			const reader = new FileReader();
+			const canvas_input = document.getElementById('canvas_input');
+			const canvas_output = document.getElementById('canvas_output');
+			const img_output = document.getElementById('img_output');
+			const filepicker = $("#file");
+			const crop_selection = $("#crop_selection");
+			
+			var uploaded_image = {
+				image: null,
+				height: null,
+				width: null
+			}
+			var undo_steps = [];
+			var redo_steps = [];
+
+			/* image selected */
+
+			filepicker.on('change', function(e,b){
+				createReader(e.target.files[0], function(image, w, h) {
+					processUploadedImage(image, w, h);
+				});
+			});
+
+			function processUploadedImage(image, width, height){
+				uploaded_image.image = image;
+				uploaded_image.width = width;
+				uploaded_image.height = height;
+				drawImageToCanvas(uploaded_image, canvas_input);
+				drawImageToCanvas(uploaded_image, canvas_output);
+				drawCanvasToImg(canvas_output, img_output);
+				$(img_output).toggleClass("has_image", true);
+				$("#img_output_wrapper").removeClass("hidden");
+
+				$("#size_details").text(`${width} (w) x ${height} (h)`);
+				$("#size_section").removeClass("hidden");
+
+			}
+
+			function createReader(file, whenReady) {
+				reader.onload = function(evt) {
+					var image = new Image();
+					image.onload = function(evt) {
+						var width = this.width;
+						var height = this.height;
+						if (whenReady) whenReady(image, width, height);
+					};
+					image.src = evt.target.result; 
+				};
+				reader.readAsDataURL(file);
+			}
+
+			function hasUploadedImage(){
+				return uploaded_image.image != null;
+			}
+
+			function reset(){
+				drawImageToCanvas(uploaded_image, canvas_output);
+				drawCanvasToImg(canvas_output, img_output);
+			}
+			function updateDimentions(width, height){
+				$("#size_details").text(`${width} (w) x ${height} (h)`);				
+			}
+			/* drawing functions */
+			function cropImageToCanvas(image, canvas, start, end){
+				if(image == null || image.image == null) return;
+				const ctx = canvas.getContext('2d');
+				if(isNaN(start.x) || isNaN(start.y) || isNaN(end.x) || isNaN(end.y)) return;
+				const width = end.x-start.x;
+				const height = end.y-start.y;
+
+				canvas.width = width;
+				canvas.height = height;
+				ctx.setTransform(1, 0, 0, 1, 0, 0);
+				ctx.clearRect(0, 0, canvas.width, canvas.height);
+				ctx.drawImage(image.image, start.x, start.y, width, height, 0, 0, width, height);
+			}
+			function drawImageToCanvas(image, canvas, scale, rotate){
+				if(image == null || image.image == null) return;
+				const ctx = canvas.getContext('2d');
+				if(!scale || isNaN(scale)) scale = 1;
+				if(!rotate || isNaN(rotate)) rotate = 0;
+
+				rotate = rotate % 360;
+				if(rotate > 180 || rotate < -180)
+					rotate = -1 * rotate % 180;
+
+				if (rotate % 180 != 0 && rotate % 90 == 0){
+					canvas.width = image.height;
+					canvas.height = image.width;
+				}
+				else{
+					canvas.width = image.width * scale;
+					canvas.height = image.height * scale;
+				}
+
+				ctx.setTransform(1*scale, 0, 0, 1*scale, 0, 0);
+				ctx.clearRect(0, 0, canvas.width, canvas.height);
+				
+				if(!isNaN(rotate)){
+					ctx.rotate(Math.PI * rotate*1.0/180, canvas.width/2, canvas.height/2);
+					var offset_x = 0, offset_y = 0;
+					if (rotate == 90 || rotate == 180 || rotate == -180){
+						offset_y = -image.height;
+					}
+					if (rotate == -90 || rotate == 180 || rotate == -180){
+						offset_x = -image.width;
+					}
+					ctx.translate(offset_x,offset_y);
+				}
+				ctx.drawImage(image.image, 0, 0);
+			}
+
+			function drawCanvasToImg(canvas, img){
+				img.src = canvas.toDataURL('image/png');
+			}
+
+			function getCanvasAsImage(canvas, callback){
+				var image = new Image();
+				image.src = canvas.toDataURL('image/png');
+		        image.onload = function(evt) {
+		        	if(callback){
+		        		callback(
+							{
+								image: image,
+								width: image.width,
+								height: image.height,
+							}
+
+	        			);
+		        	}
+		        };
+			}
+			function crop(start,end){
+				if(!hasUploadedImage()) return;
+				
+				if(isNaN(start.x) || isNaN(start.y) || isNaN(end.x) || isNaN(end.y)) return;
+
+				getCanvasAsImage(canvas_output, function(image){
+					undo_steps.push(image);
+					redo_steps = [];
+					cropImageToCanvas(image, canvas_output, start, end);
+					updateDimentions(canvas_output.width, canvas_output.height);
+					drawCanvasToImg(canvas_output, img_output);
+					$(img_output).toggleClass("has_image", true);
+				});
+			}
+
+			function restore(restore_from, backup_to){
+				const image = restore_from.pop();
+				if(!image) return;
+
+				getCanvasAsImage(canvas_output, function(backup){
+					backup_to.push(backup);
+					drawImageToCanvas(image, canvas_output);
+					drawCanvasToImg(canvas_output, img_output);
+					updateDimentions(canvas_output.width, canvas_output.height);
+				});
+			}
+			function undo(){
+				restore(undo_steps, redo_steps);
+			}
+			function redo(){
+				restore(redo_steps, undo_steps);
+			}
+
+			$("#X0, #X1, #Y0, #Y1").on("keyup change", function(){
+				const x = parseInt($("#X0").val());
+				const y = parseInt($("#Y0").val());
+				const width = parseInt($("#X1").val()) - x;
+				const height = parseInt($("#Y1").val()) - y;
+
+				crop_selection.toggle(!(isNaN(x) || isNaN(y) || isNaN(width) || isNaN(height)));
+				crop_selection.css({
+					left: x,
+					top: y,
+					width: width,
+					height: height
+				})
+			});
+			$("#crop").on("click", function(){
+				crop({x: $("#X0").val(), y: $("#Y0").val()}, {x: $("#X1").val(), y: $("#Y1").val()}); 
+				crop_selection.toggle(false);
+			});
+			$("#reset").on("click", function(){
+				reset();
+			});
+			$("#undo").on("click", function(){
+				undo();
+			});
+			$("#redo").on("click", function(){
+				redo();
+			});
+
+
+			/* support pasting - from https://stackoverflow.com/a/18387322 */
+			var CLIPBOARD = new CLIPBOARD_CLASS("canvas_input", true, function(image){
+				processUploadedImage(image, image.width||canvas_input.width, image.height||canvas_input.height);
+			});
+
+			/**
+			 * image pasting into canvas
+			 * 
+			 * @param {string} canvas_id - canvas id
+			 * @param {boolean} autoresize - if canvas will be resized
+			 */
+			function CLIPBOARD_CLASS(canvas_id, autoresize, callback) {
+				var _self = this;
+				var canvas = document.getElementById(canvas_id);
+				var ctx = document.getElementById(canvas_id).getContext("2d");
+				var ctrl_pressed = false;
+				var command_pressed = false;
+				var paste_event_support;
+				var pasteCatcher;
+
+				//handlers
+				document.addEventListener('keydown', function (e) {
+					_self.on_keyboard_action(e);
+				}, false); //firefox fix
+				document.addEventListener('keyup', function (e) {
+					_self.on_keyboardup_action(e);
+				}, false); //firefox fix
+				document.addEventListener('paste', function (e) {
+					_self.paste_auto(e);
+				}, false); //official paste handler
+
+				//constructor - we ignore security checks here
+				this.init = function () {
+					pasteCatcher = document.createElement("div");
+					pasteCatcher.setAttribute("id", "paste_ff");
+					pasteCatcher.setAttribute("contenteditable", "");
+					pasteCatcher.style.cssText = 'opacity:0;position:fixed;top:0px;left:0px;width:10px;margin-left:-20px;';
+					document.body.appendChild(pasteCatcher);
+
+					// create an observer instance
+					var observer = new MutationObserver(function(mutations) {
+						mutations.forEach(function(mutation) {
+							if (paste_event_support === true || ctrl_pressed == false || mutation.type != 'childList'){
+								//we already got data in paste_auto()
+								return true;
+							}
+
+							//if paste handle failed - capture pasted object manually
+							if(mutation.addedNodes.length == 1) {
+								if (mutation.addedNodes[0].src != undefined) {
+									//image
+									_self.paste_createImage(mutation.addedNodes[0].src);
+								}
+								//register cleanup after some time.
+								setTimeout(function () {
+									pasteCatcher.innerHTML = '';
+								}, 20);
+							}
+						});
+					});
+					var target = document.getElementById('paste_ff');
+					var config = { attributes: true, childList: true, characterData: true };
+					observer.observe(target, config);
+				}();
+				//default paste action
+				this.paste_auto = function (e) {
+					paste_event_support = false;
+					if(pasteCatcher != undefined){
+						pasteCatcher.innerHTML = '';
+					}
+					if (e.clipboardData) {
+						var items = e.clipboardData.items;
+						if (items) {
+							paste_event_support = true;
+							//access data directly
+							for (var i = 0; i < items.length; i++) {
+								if (items[i].type.indexOf("image") !== -1) {
+									//image
+									var blob = items[i].getAsFile();
+									var URLObj = window.URL || window.webkitURL;
+									var source = URLObj.createObjectURL(blob);
+									this.paste_createImage(source);
+								}
+							}
+							e.preventDefault();
+						}
+						else {
+							//wait for DOMSubtreeModified event
+							//https://bugzilla.mozilla.org/show_bug.cgi?id=891247
+						}
+					}
+				};
+				//on keyboard press
+				this.on_keyboard_action = function (event) {
+					k = event.keyCode;
+					//ctrl
+					if (k == 17 || event.metaKey || event.ctrlKey) {
+						if (ctrl_pressed == false)
+							ctrl_pressed = true;
+					}
+					//v
+					if (k == 86) {
+						if (document.activeElement != undefined && document.activeElement.type == 'text') {
+							//let user paste into some input
+							return false;
+						}
+
+						if (ctrl_pressed == true && pasteCatcher != undefined){
+							pasteCatcher.focus();
+						}
+					}
+				};
+				//on kaybord release
+				this.on_keyboardup_action = function (event) {
+					//ctrl
+					if (event.ctrlKey == false && ctrl_pressed == true) {
+						ctrl_pressed = false;
+					}
+					//command
+					else if(event.metaKey == false && command_pressed == true){
+						command_pressed = false;
+						ctrl_pressed = false;
+					}
+				};
+				//draw pasted image to canvas
+				this.paste_createImage = function (source) {
+					var pastedImage = new Image();
+					pastedImage.onload = function () {
+						if(autoresize == true){
+							//resize
+							canvas.width = pastedImage.width;
+							canvas.height = pastedImage.height;
+						}
+						else{
+							//clear canvas
+							ctx.clearRect(0, 0, canvas.width, canvas.height);
+						}
+						ctx.drawImage(pastedImage, 0, 0);
+						if(callback) callback(pastedImage);
+					};
+					pastedImage.src = source;
+				};
+			}			
+		</script> 
+		<script type="text/javascript" src="/js/nav.js"></script>
+	</body>
+</html>

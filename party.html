@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+    <head>
+    	<title>Party Time</title>
+    	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    	<style type="text/css">
+			h1 {
+				margin: 0;
+			}
+			body
+			{
+				margin: 1em;
+				text-align: center;
+			}
+
+			.hidden {
+				display: none;
+			}
+
+			.hidden.has_image {
+				display: inline;
+			}
+
+			input[type=number]{
+				width: 5em;
+			}
+
+			.inline.control {
+				display: inline;
+			}
+			button {
+				background-color: #FFFFFF;
+				border: 1px solid #cccccc;
+				border-radius: 4px;
+			}
+			button:hover {
+				background-color: #cccccc;
+			}
+			button:active {
+				background-color: #999999;
+			}
+			div.section {
+				margin-bottom: 0.5em;
+			}
+			nav {
+				margin: 0.5em;
+			}
+			nav a {
+				margin-left: 0.5em;
+			}
+
+			label {
+				font-weight: bold;
+			}
+
+
+    		.canvas_width {
+    		}
+    		canvas, #processing, #output {
+    			display: none;
+    		}
+
+    		canvas.has_image, #output.has_image{
+    			display: inline;
+    		}
+    		input[type=number]{
+    			width: 5em;
+    		}
+    		#combined_input {
+    			width: 20em;
+    		}
+    	</style>
+    </head>
+    <body>
+	  <section class="section">
+	    <div class="container">
+	      <h1 class="title is-1">
+	        Party Time
+	      </h1>
+	      <nav></nav>
+	      <p>Paste / Drag & Drop / Select image. To save, right click / long press GIF</p>
+
+
+		  <div class="column">
+		  	<label class="label">Select Image: <input class="input" type="file" id="file"></label>
+		  </div>
+
+    	<div id="rendering">Rendering.....</div>
+
+		<canvas id="image_foreground"></canvas>
+        <script src="/js/jquery-3.3.1.min.js"></script><!-- https://jquery.com/download/ -->
+        <script src="/js/gif.js"></script><!-- https://github.com/jnordberg/gif.js -->
+        <script src="/js/image_paste.js"></script>
+  
+        <div>
+			<canvas class="canvas_width" id="canvas_preview"></canvas>
+			<canvas id="processing"></canvas>
+		    <img class="canvas_width" id="output" >
+		</div>
+	  </section>
+
+
+		<script>
+
+		const reader = new FileReader();
+		const canvas_preview = document.getElementById('canvas_preview');
+		const canvas = document.getElementById('processing');
+		const output = document.getElementById('output');
+		const filepicker = $("#file");
+		const filepicker_foreground = $("#file_foreground");
+		const canvas_foreground = document.getElementById('image_foreground');
+		const ctx_foreground = canvas_foreground.getContext('2d');
+		var image_foreground = null;
+		const ctx = canvas.getContext('2d');
+		var last_image = null;
+		function createReader(file, whenReady) {
+		    reader.onload = function(evt) {
+		        var image = new Image();
+		        image.onload = function(evt) {
+		            var width = this.width;
+		            var height = this.height;
+		            if (whenReady) whenReady(image, width, height);
+		        };
+		        image.src = evt.target.result; 
+		    };
+		    reader.readAsDataURL(file);
+		}
+		function parseValue(text,parseFunction,defaultValue){
+			var value = parseFunction(text);
+			if (isNaN(value) && (typeof(defaultValue) !== "undefined")) return defaultValue;
+			return value;
+		}
+		function getScale(){
+			return { x: parseValue($("#scale_x").val(), parseFloat, 0), y: parseValue($("#scale_y").val(), parseFloat, 0)}
+		}
+
+		function refreshData(){
+			$(".form_toggle input").eq(0).trigger('change');
+		}
+
+		function valid(data){
+			if (typeof(data) == "undefined") return false ;
+			if (typeof(data) == "object") {
+				return !isNaN(parseInt(data.x)) && !isNaN(parseInt(data.y));
+			}
+			else{
+				return !isNaN(parseInt(data));
+			}
+		}
+		function displayOutput(url){
+			output.src = url;
+			$(output).toggleClass("has_image", true);
+		}
+
+
+		function draw(image, canvas, height, width){
+			if (height) canvas.width = width;
+			if (width) canvas.height = height;
+
+			ctx.setTransform(1, 0, 0, 1, 0, 0);
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			ctx.drawImage(image, 0,0);
+		}
+		function renderStart(){
+			$("#rendering").show();
+		}
+		function renderEnd(){
+			$("#rendering").hide();
+		}
+
+		refreshData();
+		renderEnd();
+		
+		filepicker.on('change', function(e,b){
+			if (e.target.files.length == 0) return;
+			$(output).toggleClass("has_image", false);
+			createReader(e.target.files[0], function(image, w, h) {
+				drawBackground(image,canvas,h,w)
+				party();
+			});
+		});
+
+		var CLIPBOARD = new CLIPBOARD_CLASS("canvas_preview", true, function(image){
+			drawBackground(image, canvas, image.width||canvas_preview.width, image.height||canvas_preview.height);
+			party();
+		});
+
+		function drawBackground(image, canvas, height, width){
+			last_image = image;
+			draw(image, canvas, height, width);
+			$(canvas).toggleClass("has_image", true);
+			refreshData();
+		}
+
+		const colors = ["#ff6b6b", "#ff6bb5", "#ff6bf7", "#ff8cff", "#d68cff", "#8cb5ff", "#8cffff", "#8cff8c", "#ffd68c", "#ff8c8c"];	
+
+		function party(){
+			renderStart();
+			var gif = new GIF({
+			  workers: 2,
+			  quality: 10,
+			  width: canvas.width,
+			  height: canvas.height,
+			  workerScript: '/js/gif.worker.js'
+			});
+			draw(last_image, canvas);
+			const delay = 50;
+			const STEPS = colors.length
+			const options = {copy: true, delay: delay}
+			for(var i = 0; i < STEPS; i++){
+				draw(last_image, canvas)
+				var color = hexToRgb(colors[i]);
+				ctx.fillStyle = `rgba(${color.r},${color.g},${color.b},0.8)`;
+				
+				ctx.fillRect(0, 0, canvas.width, canvas.height);
+				gif.addFrame(ctx, options);
+			}
+			gif.on('finished', function(blob) {
+				displayOutput(URL.createObjectURL(blob));
+				renderEnd();
+			});
+			gif.render();
+		}
+
+		function party2(){
+			renderStart();
+			var gif = new GIF({
+			  workers: 2,
+			  quality: 10,
+			  width: canvas.width,
+			  height: canvas.height,
+		      transparent: 'rgba(0,0,0,0)',
+			  workerScript: '/js/gif.worker.js'					      
+			});
+			const delay = 50;
+			const STEPS = colors.length
+			const options = {copy: true, delay: delay}
+			ctx.imageSmoothingEnabled = true;
+			for(var i = 0; i < STEPS; i++){
+				ctx.globalCompositeOperation = "source-over";
+				draw(last_image, canvas)
+				ctx.globalCompositeOperation = "source-atop";
+				var color = hexToRgb(colors[i]);
+				ctx.fillStyle = `rgba(${color.r},${color.g},${color.b},0.8)`;				
+				ctx.fillRect(0, 0, canvas.width, canvas.height);
+				gif.addFrame(ctx, options);
+			}
+			ctx.globalCompositeOperation = "source-over";
+			gif.on('finished', function(blob) {
+				displayOutput(URL.createObjectURL(blob));
+				renderEnd();
+			});
+			gif.render();
+		}
+		function hexToRgb(hex) {
+		    var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+		    return result ? {
+		        r: parseInt(result[1], 16),
+		        g: parseInt(result[2], 16),
+		        b: parseInt(result[3], 16)
+		    } : null;
+		}
+
+		</script> 
+		<script type="text/javascript" src="/js/nav.js"></script>
+    </body>
+</html>

@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html>
+    <head>
+    	<title>GIF IT</title>
+    	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    	<style type="text/css">
+    		body
+    		{
+    			margin: 0 auto;
+
+    		}
+
+    		#gif_it {
+    			display: block;
+    			width: 90%;
+    			text-align: center;
+    			margin: 1em;
+
+    		}
+
+    		.canvas_width {
+    		}
+    		canvas, #output {
+    			display: none;
+    		}
+
+    		canvas.has_image, #output.has_image{
+    			display: inline;
+    		}
+    		input[type=number]{
+    			width: 5em;
+    		}
+    		#combined_input {
+    			width: 20em;
+    		}
+
+			nav {
+				margin: 0.5em;
+			}
+			nav a {
+				margin-left: 0.5em;
+			}
+    	</style>
+	    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.4/css/bulma.min.css">
+
+    </head>
+    <body>
+	  <section class="section">
+	    <div class="container">
+	      <h1 class="title is-1">
+	        Deal with it!
+	      </h1>
+	  <nav></nav>
+
+
+    	<h3 class="title is-4">Step 1: Upload image</h3>
+
+		<div class="columns">
+		  <div class="column">
+		  	<label class="label">Background image (static): <input class="input" type="file" id="file"></label>
+		  </div>
+		  <div class="column">
+		  	<label class="label">Foreground image (moves): <input class="input" type="file" id="file_foreground"></label>
+		  </div>
+		</div>
+
+        
+        
+
+    	<h3 class="title is-4">Step 2: Configure</h3>
+        <div class="form_toggle">
+
+			<div class="columns">
+			  <div class="column">
+	        <div class="field"><label class="label">Start X,Y: <input class="input" type="number" id="start_x" value="0">,<input class="input" type="number" id="start_y" value="0"></label></div>
+
+			  </div>
+			  <div class="column">
+	        <div class="field"><label class="label">End X,Y: <input class="input" type="number" id="end_x" value="100">,<input class="input" type="number" id="end_y" value="100"></label></div>
+
+			  </div>
+			  <div class="column">
+	        <div class="field"><label class="label">Angle: <input class="input" type="number" id="angle" value="0"></label></div>
+
+			  </div>
+			  <div class="column">
+	        <div class="field"><label class="label">Scale X,Y: <input class="input" type="number" id="scale_x" value="1" step="0.1">,<input class="input" type="number" id="scale_y" value="1" step="0.1"></label></div>
+			  </div>
+			</div>
+
+			<div class="columns">
+			  <div class="column">
+
+	        <div class="field"><label class="label">FPS: <input class="input" type="number" id="gif_fps" value="5"></label></div>
+			  </div>
+			  <div class="column">
+	        <div class="field"><label class="label">Animation Duration: <input class="input" type="number" id="gif_duration" value="1.5" step="0.1">seconds</label></div>
+			  </div>
+			  <div class="column">
+	        <div class="field"><label class="label">Pause at start: <input class="input" type="number" id="gif_pause_start" value="200">milliseconds</label></div>
+			  </div>
+			  <div class="column">
+	        <div class="field"><label class="label">Pause at end: <input class="input" type="number" id="gif_pause_end" value="500">milliseconds</label></div>
+			  </div>
+			</div>
+
+	        <div class="field"><label class="label">Config as single line: <input class="input" type="text" id="combined_input" value=""></label>
+	        	<div>(format: <code>startX,startY,endX,endY,angel,scaleX,scaleY,fps,duration,pauseAtStart,pauseAtEnd</code>)</div>
+	        </div>
+
+        </div>
+        <button class="button" id="swap_start_end">Swap start & end</button>
+
+
+    	<h3 class="title is-4">Step 3: Create it!</h3>
+    	<div id="rendering">Rendering.....</div>
+	    <button class="button is-primary" type="button" id="gif_it">GIF IT!</button>
+		<img id="glasses" src="/images/glasses.gif" style="display:none"><!--  https://dwigif.appspot.com/ -->
+		<canvas id="image_foreground"></canvas>
+        <script src="/js/jquery-3.3.1.min.js"></script><!-- https://jquery.com/download/ -->
+        <script src="/js/gif.js"></script><!-- https://github.com/jnordberg/gif.js -->
+  
+
+        <div>
+		    <div>
+				<div class="field is-horizontal is-grouped is-grouped-multiline">
+				  <div class="control"><label class="label">Size: <input class="input" type="number" id="size" value="45">%</label></div>
+		    		(Size presets: 
+		          <div class="control"><button class="button" id="size_45">45</button></div>
+		          <div class="control"><button class="button" id="size_original">Original size</button></div>
+		          <div class="control"><button class="button" id="size_full_width">Full width</button>)</div>
+		      	</div>
+	        </div>
+			<canvas class="canvas_width" id="canvas"></canvas>
+		    <img class="canvas_width" id="output" >
+		        	<canvas id="MyCanvas" width="650" height="600" style="display:block"></canvas>
+
+		</div>
+	  </section>
+
+
+
+
+		<script>
+
+		const reader = new FileReader();
+		const canvas = document.getElementById('canvas');
+		const output = document.getElementById('output');
+		const filepicker = $("#file");
+		const filepicker_foreground = $("#file_foreground");
+		const canvas_foreground = document.getElementById('image_foreground');
+		const ctx_foreground = canvas_foreground.getContext('2d');
+		var image_foreground = null;
+		const glasses = document.getElementById('glasses');
+		const ctx = canvas.getContext('2d');
+		var last_image = null;
+		function createReader(file, whenReady) {
+		    reader.onload = function(evt) {
+		        var image = new Image();
+		        image.onload = function(evt) {
+		            var width = this.width;
+		            var height = this.height;
+		            if (whenReady) whenReady(image, width, height);
+		        };
+		        image.src = evt.target.result; 
+		    };
+		    reader.readAsDataURL(file);
+		}
+		function parseValue(text,parseFunction,defaultValue){
+			var value = parseFunction(text);
+			if (isNaN(value) && (typeof(defaultValue) !== "undefined")) return defaultValue;
+			return value;
+		}
+		function getStart(){
+			return { x: parseValue($("#start_x").val(), parseInt, 0), y: parseValue($("#start_y").val(), parseInt, 0)}
+		}
+		function getEnd(){
+			return { x: parseValue($("#end_x").val(), parseInt, 0), y: parseValue($("#end_y").val(), parseInt, 0)}
+		}
+		function getScale(){
+			return { x: parseValue($("#scale_x").val(), parseFloat, 0), y: parseValue($("#scale_y").val(), parseFloat, 0)}
+		}
+		function getAngle(){
+			return parseValue($("#angle").val(), parseInt, 0);
+		}
+		function getFPS(){
+			return parseValue($("#gif_fps").val(), parseInt, 0);
+		}
+		function getDuration(){
+			return parseValue($("#gif_duration").val(), parseFloat, 2);
+		}
+		function getPauseStart(){
+			return parseValue($("#gif_pause_start").val(), parseInt, 200);
+		}
+		function getPauseEnd(){
+			return parseValue($("#gif_pause_end").val(), parseInt, 200);
+		}
+
+		function setValue(x,y,id_prefix){
+			$("#" + id_prefix + "_x").val(x);
+			$("#" + id_prefix + "_y").val(y);
+		}
+
+		function setStart(x,y){
+			setValue(x,y, "start");
+		}
+		function setEnd(x,y){
+			setValue(x,y, "end");
+		}
+		function setScale(x,y){
+			setValue(x,y, "scale");
+		}
+		function setAngle(angle){
+			$("#angle").val(angle);
+		}
+		function setFPS(value){
+			$("#gif_fps").val(value);
+		}
+		function setDuration(value){
+			$("#gif_duration").val(value);
+		}
+		function setPauseStart(value){
+			$("#gif_pause_start").val(value);
+		}
+		function setPauseEnd(value){
+			$("#gif_pause_end").val(value);
+		}
+		function updateStartEndPos(height,width){
+			const start = getStart();
+			const end = getEnd();
+			const x = (canvas_width - getForegroundImage().width)/2;
+			// if (start.x == 0 && start.y == 0){
+				setStart(x,-1 * getForegroundImage().height);
+			
+			// if (end.x == 100 && end.y == 100){
+				setEnd(x, height/2);
+			
+		}
+
+		function swap_start_end(){
+			const start = getStart();
+			const end = getEnd();
+			setStart(end.x, end.y);
+			setEnd(start.x,start.y);
+			refreshData();
+		}
+
+		function refreshData(){
+			$(".form_toggle input").eq(0).trigger('change');
+		}
+
+		function valid(data){
+			if (typeof(data) == "undefined") return false ;
+			if (typeof(data) == "object") {
+				return !isNaN(parseInt(data.x)) && !isNaN(parseInt(data.y));
+			}
+			else{
+				return !isNaN(parseInt(data));
+			}
+		}
+		function displayOutput(url){
+			output.src = url;
+			$(output).toggleClass("has_image", true);
+		}
+		function parseCombined(str){
+			console.log("Combined is ", str);
+			str = str || "";
+			const values = str.split(",");
+			i = 0;
+			setStart(values[i++], values[i++]);
+			setEnd(values[i++], values[i++]);
+			setAngle(values[i++]);
+			setScale(values[i++], values[i++]);
+			setFPS(values[i++]);
+			setDuration(values[i++]);
+			setPauseStart(values[i++]);
+			setPauseEnd(values[i++]);
+		}
+		function updateCombined(start, end, angle, scale, fps, duration, pause_start, pause_end){
+			$("#combined_input").val(`${start.x},${start.y},${end.x},${end.y},${angle},${scale.x},${scale.y},${fps},${duration},${pause_start},${pause_end}`);
+		}
+
+		function draw(image1, image2, image2_options){
+			ctx.setTransform(1, 0, 0, 1, 0, 0);
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			ctx.drawImage(image1, 0,0);
+			if(image2){
+				if(valid(image2_options.angle)) ctx.rotate(image2_options.angle * Math.PI / 180);
+				if(valid(image2_options.scale)) ctx.scale(image2_options.scale.x, image2_options.scale.y);
+				ctx.drawImage(image2, image2_options.x, image2_options.y);
+			}
+		}
+		function renderStart(){
+			$("#rendering").show();
+		}
+		function renderEnd(){
+			$("#rendering").hide();
+		}
+
+		function getForegroundImage(){
+			if(image_foreground)
+				return image_foreground;
+			return glasses;
+		}
+
+		$("#gif_it").on("click", function(){
+			renderStart();
+			var gif = new GIF({
+			  workers: 2,
+			  quality: 10,
+			  width: canvas.width,
+			  height: canvas.height,
+			  workerScript: '/js/gif.worker.js'			  
+			});
+			const delay = parseValue(1000.0 / getFPS(), parseInt, 200);
+			const start = getStart();
+			const end = getEnd();
+			const angle = getAngle();
+			const scale = getScale();
+			const STEPS = parseInt(getFPS() * getDuration());
+			const inc_x = (end.x - start.x) * 1.0 / STEPS;
+			const inc_y = (end.y - start.y) * 1.0 / STEPS;
+			draw(last_image, null);
+			const options = {copy: true, delay: delay}
+			const options_pause_start = {copy: true, delay: getPauseStart()}
+			const options_pause_end = {copy: true, delay: getPauseEnd()}
+			for(var i = 0; i <= STEPS; i++){
+				draw(last_image, getForegroundImage(), {x: (start.x + inc_x * i), y: (start.y + inc_y * i), scale: scale, angle: angle})
+				if(i == 0){
+					gif.addFrame(ctx, options_pause_start);
+				}
+				else if(i == STEPS){
+					gif.addFrame(ctx, options_pause_end);
+				}
+				else{
+					gif.addFrame(ctx, options);
+				}
+			}
+			gif.on('finished', function(blob) {
+				displayOutput(URL.createObjectURL(blob));
+				renderEnd();
+			});
+			gif.render();
+		})
+
+		$(".form_toggle").on("change keyup", "input", function(e){
+			const from_combined_input = (e && e.target && e.target.id == "combined_input")
+			if(from_combined_input) parseCombined($(this).val());
+
+			ctx.setTransform(1, 0, 0, 1, 0, 0);
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			const start = getStart();
+			const end = getEnd();
+			const angle = getAngle();
+			const scale = getScale();
+			const fps = getFPS();
+			const duration = getDuration();
+			const pause_start = getPauseStart();
+			const pause_end = getPauseEnd();
+			if(!from_combined_input) updateCombined(start, end, angle, scale, fps, duration, pause_start, pause_end);
+
+			if (last_image == null) return;
+			ctx.drawImage(last_image, 0,0);
+			if(valid(scale)) ctx.scale(scale.x, scale.y);
+			if(valid(angle)) ctx.rotate(angle * Math.PI / 180);
+			ctx.drawImage(getForegroundImage(), end.x, end.y);
+		});
+		refreshData();
+		renderEnd();
+		$("#swap_start_end").click(swap_start_end);
+
+
+
+		filepicker.on('change', function(e,b){
+			if (e.target.files.length == 0) return;
+			$(output).toggleClass("has_image", false);
+			createReader(e.target.files[0], function(image, w, h) {
+				drawBackground(image,h,w)
+				updateStartEndPos(h,w);
+				refreshData();
+			});
+		});
+
+		filepicker_foreground.on('change', function(e,b){
+			createReader(e.target.files[0], function(image, w, h) {
+				canvas_foreground.width = w;
+				canvas_foreground.height = h;
+				ctx_foreground.setTransform(1, 0, 0, 1, 0, 0);
+				ctx_foreground.clearRect(0, 0, canvas_foreground.width, canvas_foreground.height);
+				ctx_foreground.drawImage(image,0,0);
+				image_foreground = image;
+				refreshData();
+				updateStartEndPos(h,w);
+			});
+		});
+
+		
+		$("#size").on("change keyup", function(){
+			resize($(this).val());
+		}).trigger('change');
+		$("#size_45").on("click", function(){ $("#size").val("45").trigger('change'); })
+		$("#size_original").on("click", function(){ $("#size").val("-").trigger('change'); })
+		$("#size_full_width").on("click", function(){ $("#size").val("100").trigger('change'); })
+
+		function resize(size){
+			const sizeInteger = parseInt(size);
+			$(".canvas_width").css("width", (isNaN(sizeInteger) ? "auto" : `${sizeInteger}%`));
+		}
+
+		function drawBackground(image, height, width){
+			last_image = image;
+			canvas.width = width;
+			canvas.height = height;
+			const end = getEnd();
+			draw(image, getForegroundImage(), {angle: getAngle(), scale: getScale(), x: end.x, y: end.y});
+			$(canvas).toggleClass("has_image", true);
+			refreshData();
+		}
+		function drawTestInput(){
+			var testInput = document.getElementById("test_input");
+			drawBackground(testInput,testInput.height,testInput.width)
+		}
+
+
+		</script> 
+		<script type="text/javascript" src="/js/nav.js"></script>
+    </body>
+</html>

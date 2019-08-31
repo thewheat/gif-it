@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Image Resize</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<style type="text/css">
+			h1 {
+				margin: 0;
+			}
+			body
+			{
+				margin: 1em;
+				text-align: center;
+			}
+
+			.hidden {
+				display: none;
+			}
+
+			.hidden.has_image {
+				display: inline;
+			}
+
+			input[type=number]{
+				width: 5em;
+			}
+
+			.inline.control {
+				display: inline;
+			}
+			button {
+				background-color: #FFFFFF;
+				border: 1px solid #cccccc;
+				border-radius: 4px;
+			}
+			button:hover {
+				background-color: #cccccc;
+			}
+			button:active {
+				background-color: #999999;
+			}
+			div.section {
+				margin-bottom: 0.5em;
+			}
+			nav {
+				margin: 0.5em;
+			}
+			nav a {
+				margin-left: 0.5em;
+			}
+
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<h1>
+				Resize Image
+			</h1>
+			<nav>
+			</nav>
+			<div>
+				<div class="section">
+					<label class="label"><strong>Image:</strong> <input class="input" type="file" id="file"></label>
+				</div>
+				<div class="section hidden" id="size_section">
+					<strong>Original dimensions:</strong> <span id="size_details"></span>
+				</div>
+				<div class="section">
+					<strong>Width:</strong> 
+					<div class="inline control"><label class="label"><input class="input" type="number" id="size_w"> px</label></div>
+					<div class="inline control"><button class="button resize_pixel" data-dimension="width" data-amount="-1">-1</button></div>
+					<div class="inline control"><button class="button resize_pixel" data-dimension="width" data-amount="1">+1</button></div>
+					<div class="inline control"><button class="button resize_pixel" data-dimension="width" data-amount="-10">-10</button></div>
+					<div class="inline control"><button class="button resize_pixel" data-dimension="width" data-amount="10">+10</button></div>
+					<div class="inline control"><button class="button resize_pixel" data-dimension="width" data-amount="-100">-100</button></div>
+					<div class="inline control"><button class="button resize_pixel" data-dimension="width" data-amount="100">+100</button></div>
+				</div>
+				<div class="section">
+					<strong>Height:</strong> 
+					<div class="inline control"><label class="label"><input class="input" type="number" id="size_h"> px</label></div>
+					<div class="inline control"><button class="button resize_pixel" data-dimension="height" data-amount="-1">-1</button></div>
+					<div class="inline control"><button class="button resize_pixel" data-dimension="height" data-amount="1">+1</button></div>
+					<div class="inline control"><button class="button resize_pixel" data-dimension="height" data-amount="-10">-10</button></div>
+					<div class="inline control"><button class="button resize_pixel" data-dimension="height" data-amount="10">+10</button></div>
+					<div class="inline control"><button class="button resize_pixel" data-dimension="height" data-amount="-100">-100</button></div>
+					<div class="inline control"><button class="button resize_pixel" data-dimension="height" data-amount="100">+100</button></div>
+				</div>
+				<div class="section">
+					<strong>Other resizing:</strong> 
+					<div class="inline control"><button class="button resize_percent" data-amount="50">50% of current size</button></div>
+					<div class="inline control"><button class="button" id="size_original">Reset to original size</button></div>
+					<div class="inline control"><button class="button resize_percent" data-amount="200">200% of current size</button></div>
+				</div>
+			</div>
+			<canvas class="canvas_width hidden" id="canvas_input"></canvas>
+			<canvas class="canvas_width hidden" id="canvas_output"></canvas>
+			<div id="img_output_wrapper" class="hidden">
+				<h5>Right click / Long press to save image</h5>
+				<img class="canvas_width hidden" id="img_output">
+			</div>
+		</div>
+
+		<script src="/js/jquery-3.3.1.min.js"></script><!-- https://jquery.com/download/ -->
+		<script>
+			const reader = new FileReader();
+			const canvas_input = document.getElementById('canvas_input');
+			const canvas_output = document.getElementById('canvas_output');
+			const img_output = document.getElementById('img_output');
+			const filepicker = $("#file");
+
+			var uploaded_image = {
+				image: null,
+				height: null,
+				width: null
+			}
+
+			/* image selected */
+
+			filepicker.on('change', function(e,b){
+				createReader(e.target.files[0], function(image, w, h) {
+					processUploadedImage(image, w, h);
+				});
+			});
+
+			function processUploadedImage(image, width, height){
+				uploaded_image.image = image;
+				uploaded_image.width = width;
+				uploaded_image.height = height;
+				$("#size_details").text(`${width} (w) x ${height} (h)`);
+				$("#size_section").removeClass("hidden");
+				drawImageToCanvas(uploaded_image, canvas_input);
+				resize(1);
+				$("#img_output_wrapper").removeClass("hidden");
+			}
+
+			function createReader(file, whenReady) {
+				reader.onload = function(evt) {
+					var image = new Image();
+					image.onload = function(evt) {
+						var width = this.width;
+						var height = this.height;
+						if (whenReady) whenReady(image, width, height);
+					};
+					image.src = evt.target.result; 
+				};
+				reader.readAsDataURL(file);
+			}
+
+			function hasUploadedImage(){
+				return uploaded_image.image != null;
+			}
+
+			/* drawing functions */
+
+			function drawImageToCanvas(image, canvas, scale){
+				if(image == null || image.image == null) return;
+				const ctx = canvas.getContext('2d');
+				if(!scale || isNaN(scale)) scale = 1;
+
+				canvas.width = image.width * scale;
+				canvas.height = image.height * scale;
+				ctx.setTransform(1*scale, 0, 0, 1*scale, 0, 0);
+				ctx.clearRect(0, 0, canvas.width, canvas.height);
+				ctx.drawImage(image.image, 0, 0);
+			}
+
+			function drawCanvasToImg(canvas, img){
+				img.src = canvas.toDataURL('image/png');
+			}
+
+			/* resizing functions */
+			function resizePercentage(percent){
+				const new_width = canvas_output.width * percent / 100.0;
+				const new_scale = new_width / canvas_input.width;
+				resize(new_scale);
+			}
+			function resizeReset(){
+				resize(1);
+			}
+			function resizePixel(pixel,useHeight){
+				var new_scale = 1;
+				if(useHeight){
+					const new_height = canvas_output.height + pixel;
+					if(new_height <= 0) return;
+					new_scale = new_height / canvas_input.height;				
+				}
+				else
+				{
+					const new_width = canvas_output.width + pixel;
+					if(new_width <= 0) return;
+					new_scale = new_width / canvas_input.width;
+				}
+				resize(new_scale);
+			}
+
+			function resizeToDimension(dimension,useHeight){
+				var new_scale = 1;
+				if(useHeight){
+					const new_height = dimension;
+					if(new_height <= 0) return;
+					new_scale = new_height / canvas_input.height;				
+				}
+				else
+				{
+					const new_width = dimension;
+					if(new_width <= 0) return;
+					new_scale = new_width / canvas_input.width;
+				}
+				resize(new_scale);
+			}
+
+			function resize(scale){
+				if(!hasUploadedImage()) return;
+				drawImageToCanvas(uploaded_image, canvas_output, scale);
+				drawCanvasToImg(canvas_output, img_output);
+				$(img_output).toggleClass("has_image", true);
+				$("#size_w").val(canvas_output.width);
+				$("#size_h").val(canvas_output.height);
+			}
+
+			$(".button.resize_pixel").on("click", function(){
+			  const isHeight = ($(this).data("dimension") == "height");
+				const amount = parseInt($(this).data("amount"));
+				if (isNaN(amount)) return;
+				resizePixel(amount,isHeight); 
+			});
+
+			$("#size_h").on("change keyup", function(e){ resizeToDimension($(this).val(), true); });
+			$("#size_w").on("change keyup", function(e){ resizeToDimension($(this).val()); });
+
+
+			$(".button.resize_percent").on("click", function(){
+				const amount = parseInt($(this).data("amount"));
+				if (isNaN(amount)) return;
+				resizePercentage(amount); 
+			});
+
+			$("#size_original").on("click", function(){ resizeReset(); });
+
+			/* support pasting - from https://stackoverflow.com/a/18387322 */
+			var CLIPBOARD = new CLIPBOARD_CLASS("canvas_input", true, function(image){
+				processUploadedImage(image, image.width||canvas_input.width, image.height||canvas_input.height);
+			});
+
+			/**
+			 * image pasting into canvas
+			 * 
+			 * @param {string} canvas_id - canvas id
+			 * @param {boolean} autoresize - if canvas will be resized
+			 */
+			function CLIPBOARD_CLASS(canvas_id, autoresize, callback) {
+				var _self = this;
+				var canvas = document.getElementById(canvas_id);
+				var ctx = document.getElementById(canvas_id).getContext("2d");
+				var ctrl_pressed = false;
+				var command_pressed = false;
+				var paste_event_support;
+				var pasteCatcher;
+
+				//handlers
+				document.addEventListener('keydown', function (e) {
+					_self.on_keyboard_action(e);
+				}, false); //firefox fix
+				document.addEventListener('keyup', function (e) {
+					_self.on_keyboardup_action(e);
+				}, false); //firefox fix
+				document.addEventListener('paste', function (e) {
+					_self.paste_auto(e);
+				}, false); //official paste handler
+
+				//constructor - we ignore security checks here
+				this.init = function () {
+					pasteCatcher = document.createElement("div");
+					pasteCatcher.setAttribute("id", "paste_ff");
+					pasteCatcher.setAttribute("contenteditable", "");
+					pasteCatcher.style.cssText = 'opacity:0;position:fixed;top:0px;left:0px;width:10px;margin-left:-20px;';
+					document.body.appendChild(pasteCatcher);
+
+					// create an observer instance
+					var observer = new MutationObserver(function(mutations) {
+						mutations.forEach(function(mutation) {
+							if (paste_event_support === true || ctrl_pressed == false || mutation.type != 'childList'){
+								//we already got data in paste_auto()
+								return true;
+							}
+
+							//if paste handle failed - capture pasted object manually
+							if(mutation.addedNodes.length == 1) {
+								if (mutation.addedNodes[0].src != undefined) {
+									//image
+									_self.paste_createImage(mutation.addedNodes[0].src);
+								}
+								//register cleanup after some time.
+								setTimeout(function () {
+									pasteCatcher.innerHTML = '';
+								}, 20);
+							}
+						});
+					});
+					var target = document.getElementById('paste_ff');
+					var config = { attributes: true, childList: true, characterData: true };
+					observer.observe(target, config);
+				}();
+				//default paste action
+				this.paste_auto = function (e) {
+					paste_event_support = false;
+					if(pasteCatcher != undefined){
+						pasteCatcher.innerHTML = '';
+					}
+					if (e.clipboardData) {
+						var items = e.clipboardData.items;
+						if (items) {
+							paste_event_support = true;
+							//access data directly
+							for (var i = 0; i < items.length; i++) {
+								if (items[i].type.indexOf("image") !== -1) {
+									//image
+									var blob = items[i].getAsFile();
+									var URLObj = window.URL || window.webkitURL;
+									var source = URLObj.createObjectURL(blob);
+									this.paste_createImage(source);
+								}
+							}
+							e.preventDefault();
+						}
+						else {
+							//wait for DOMSubtreeModified event
+							//https://bugzilla.mozilla.org/show_bug.cgi?id=891247
+						}
+					}
+				};
+				//on keyboard press
+				this.on_keyboard_action = function (event) {
+					k = event.keyCode;
+					//ctrl
+					if (k == 17 || event.metaKey || event.ctrlKey) {
+						if (ctrl_pressed == false)
+							ctrl_pressed = true;
+					}
+					//v
+					if (k == 86) {
+						if (document.activeElement != undefined && document.activeElement.type == 'text') {
+							//let user paste into some input
+							return false;
+						}
+
+						if (ctrl_pressed == true && pasteCatcher != undefined){
+							pasteCatcher.focus();
+						}
+					}
+				};
+				//on kaybord release
+				this.on_keyboardup_action = function (event) {
+					//ctrl
+					if (event.ctrlKey == false && ctrl_pressed == true) {
+						ctrl_pressed = false;
+					}
+					//command
+					else if(event.metaKey == false && command_pressed == true){
+						command_pressed = false;
+						ctrl_pressed = false;
+					}
+				};
+				//draw pasted image to canvas
+				this.paste_createImage = function (source) {
+					var pastedImage = new Image();
+					pastedImage.onload = function () {
+						if(autoresize == true){
+							//resize
+							canvas.width = pastedImage.width;
+							canvas.height = pastedImage.height;
+						}
+						else{
+							//clear canvas
+							ctx.clearRect(0, 0, canvas.width, canvas.height);
+						}
+						ctx.drawImage(pastedImage, 0, 0);
+						if(callback) callback(pastedImage);
+					};
+					pastedImage.src = source;
+				};
+			}			
+		</script> 
+		<script type="text/javascript" src="/js/nav.js"></script>
+	</body>
+</html>
