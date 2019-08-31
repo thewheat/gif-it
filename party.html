@@ -181,7 +181,7 @@
 		});
 
 		var CLIPBOARD = new CLIPBOARD_CLASS("canvas_preview", true, function(image){
-			drawBackground(image, canvas, image.width||canvas_preview.width, image.height||canvas_preview.height);
+			drawBackground(image, canvas, image.height||canvas_preview.height, image.width||canvas_preview.width);
 			party();
 		});
 
