@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Image Annotate</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<style type="text/css">
+canvas,img {
+	border: 1px solid black;
+}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<h1>
+				Crop Image
+			</h1>
+			<nav>
+			</nav>
+		<h3>canvas output</h3>
+		<canvas id="canvas_output" width="300" height="150"></canvas>
+		<h3>img output</h3>
+		<img id="img_output">
+		<h3>canvas paste</h3>
+		<canvas id="canvas_paste"></canvas>
+		<h3>image paste</h3>
+		<img id="img_paste">
+		<button id="crop-to-image">Crop to images</button>
+		<input type="text" id="text_input">
+		<button id="add-text">Add Text</button>
+		<button id="add-arrow">Add arrow</button>
+		<button id="add-rectangle">Add rectangle</button>
+		<button id="add-oval">Add oval</button>
+		<button onclick="contractCanvas()">Contract</button>
+		<button data-amount="1" class="layer-move" id="layer-up">Move up</button>
+		<button data-amount="-1" class="layer-move" id="layer-down">Move down</button>
+		<script src="./js/jquery-3.3.1.min.js"></script><!-- https://jquery.com/download/ -->
+		<script src="./js/jcanvas.min.js"></script>
+		<script src="./js/image_paste.js"></script>
+
+		<script>
+
+		const img_paste = document.getElementById('img_paste');
+		const img_output = document.getElementById('img_output');
+		const canvas_paste = document.getElementById('canvas_paste');
+		const canvas_output = document.getElementById('canvas_output');
+		const canvas_details = {}
+		var CLIPBOARD = new CLIPBOARD_CLASS("canvas_paste", true, function(image){
+		// 	processUploadedImage(image, image.width||canvas_input.width, image.height||canvas_input.height);
+			// drawCanvasToImg(canvas_paste,img_paste);
+			var x = 0,y = canvas_details['max_y'] || 0;
+			canvas_details['min_x'] = 0;
+			canvas_details['min_y'] = 0;
+			canvas_details['max_x'] = Math.max(canvas_output.width, canvas_paste.width);
+			canvas_details['max_y'] = y + canvas_paste.height;
+			canvas_output.height = canvas_details['max_y'];
+			canvas_output.width = canvas_details['max_x'];
+			$(canvas_output).drawImage({
+			  source: canvas_paste.toDataURL('image/png'),
+			  draggable: true,
+			  fromCenter: false,
+			  x: x,
+			  y: y,
+			  click: function(target){
+			  	console.log(target);
+			  	canvas_details.selection = target.index;
+			  },
+			  dblclick: function(){
+			  	console.log("dblclick");
+			  },
+			  dragstop: function(){
+			  	console.log("dragstop");
+			  	expandCanvas();
+			  },
+			  dragstart: function(){
+			  	console.log("dragstart");
+			  },
+			  dragcancel: function(){
+			  	console.log("dragcancel");
+			  	expandCanvas();
+			  },
+			  mouseover: function(layer) {
+			    $(this).animateLayer(layer, {
+					  strokeStyle: '#000',
+				      strokeWidth: 5
+			    }, 500);
+			  },
+			  mouseout: function(layer) {
+			    $(this).animateLayer(layer, {
+			      strokeWidth: 1
+			    }, 500);
+			  },			  
+			}).drawLayers();
+
+		});
+		const text_input = $("#text_input");
+		text_input.on("keyup", function (e) {
+         if(e.which === 13){
+         	addText($(this).val());
+         }
+	   	});
+	   	$(".layer-move").on('click', function(){
+	   		const amount = eval($(this).data("amount"));
+	   		if(canvas_details.selection != undefined) {
+	   			$(canvas_output).moveLayer($(canvas_output).getLayers()[canvas_details.selection],amount);
+	   			$(canvas_output).drawLayers();
+	   		}
+	   	})
+
+	   	function expandCanvas(){
+	   		var max_x = 0;
+	   		var max_y = 0;
+	   		$(canvas_output).getLayers().forEach(function(item){
+	   			const x = item.x + item.width;
+	   			const y = item.y + item.height;
+	   			if(x > max_x) max_x = x;
+	   			if(y > max_y) max_y = y;
+	   		})
+	   		if(max_y > canvas_output.height) canvas_output.height = max_y;
+	   		if(max_x > canvas_output.width) canvas_output.width = max_x;
+	   		$(canvas_output).drawLayers();
+	   	}
+	   	function contractCanvas(){
+	   		var max_x = 0;
+	   		var max_y = 0;
+	   		var min_x = null;
+	   		var min_y = null;
+	   		$(canvas_output).getLayers().forEach(function(item){
+	   			const maxx = item.x + item.width;
+	   			const maxy = item.y + item.height;
+	   			const minx = item.x
+	   			const miny = item.y
+	   			if(maxx > max_x) max_x = maxx;
+	   			if(maxy > max_y) max_y = maxy;
+	   			if(minx < min_x) min_x = minx;
+	   			if(miny < min_y) min_y = miny;
+	   		})
+	   		if(min_y > canvas_output.height) canvas_output.height = min_y;
+	   		if(min_x > canvas_output.width) canvas_output.width = min_x;
+	   		if(max_y < canvas_output.height) canvas_output.height = max_y;
+	   		if(max_x < canvas_output.width) canvas_output.width = max_x;
+	   		$(canvas_output).drawLayers();
+	   	}
+		function addText(text){
+			$(canvas_output).drawText({
+			  fillStyle: '#9cf',
+			  strokeStyle: '#25a',
+			  strokeWidth: 2,
+			  x: 0, y: 0,
+			  fontSize: 48,
+			  fontFamily: 'Verdana, sans-serif',
+			  text: text,
+			  draggable: true,
+			  fromCenter: false,
+			  maxWidth: canvas_output.width
+			});
+		}
+		function drawCanvasToImg(canvas, img){
+			img.src = canvas.toDataURL('image/png');
+		}
+
+		function getCanvasAsImage(canvas, callback){
+			var image = new Image();
+			image.src = canvas.toDataURL('image/png');
+	        image.onload = function(evt) {
+	        	if(callback){
+	        		callback(
+						{
+							image: image,
+							width: image.width,
+							height: image.height,
+						}
+
+        			);
+	        	}
+	        };
+		}
+
+		</script> 
+		<script type="text/javascript" src="./js/nav.js"></script>
+	</body>
+</html>
