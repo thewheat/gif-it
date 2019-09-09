@@ -84,6 +84,11 @@
 
 		});
 
+		function deleteImage(index){
+			$(canvas_output).removeLayer(index).drawLayers();
+			contractCanvas();
+		}
+
 		function expandCanvas(){
 			var max_x = 0;
 			var max_y = 0;
