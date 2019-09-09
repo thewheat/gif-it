@@ -1,4 +1,5 @@
 const NAV = {
+ "Combine": "combine.html",
  "Crop": "crop.html",
  "Flip": "flip.html",
  "Rotate": "rotate.html",

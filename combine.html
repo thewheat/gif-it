@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Image Combine</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<style type="text/css">
+
+			h1 {
+				margin: 0;
+			}
+			body
+			{
+				margin: 1em;
+				text-align: center;
+			}
+
+			nav {
+				margin: 0.5em;
+			}
+			nav a {
+				margin-left: 0.5em;
+			}
+
+			canvas {
+				border: 1px solid black;
+			}
+			#canvas_paste{
+				display: none;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<h1>
+				Combine Images
+			</h1>
+			<nav>
+			</nav>
+			<p>Paste images to add them to the canvas. Move and drag them around. Dragging them right/down will expand the canvas</p>
+			<p>To delete an image, double click it</p>
+			<p>Right click and save final image</p>
+			<h3>Your combined image</h3>
+			<canvas id="canvas_output" width="300" height="150"></canvas>
+			<canvas id="canvas_paste"></canvas>
+		</div>
+
+		<script src="./js/jquery-3.3.1.min.js"></script>
+		<script src="./js/jcanvas.min.js"></script>
+		<script src="./js/image_paste.js"></script>
+
+		<script>
+		const canvas_paste = document.getElementById('canvas_paste');
+		const canvas_output = document.getElementById('canvas_output');
+		const canvas_details = {}
+		var CLIPBOARD = new CLIPBOARD_CLASS("canvas_paste", true, function(image){
+			var x = 0,y = canvas_details['max_y'] || 0;
+			canvas_details['min_x'] = 0;
+			canvas_details['min_y'] = 0;
+			canvas_details['max_x'] = Math.max(canvas_output.width, canvas_paste.width);
+			canvas_details['max_y'] = y + canvas_paste.height;
+			canvas_output.height = canvas_details['max_y'];
+			canvas_output.width = canvas_details['max_x'];
+			$(canvas_output).drawImage({
+				source: canvas_paste.toDataURL('image/png'),
+				draggable: true,
+				fromCenter: false,
+				x: x,
+				y: y,
+				dblclick: function(target){
+					deleteImage(target.index);
+				},
+				dragstop: function(){
+					expandCanvas();
+					contractCanvas();
+				},
+				dragcancel: function(){
+					expandCanvas();
+				},
+				drag: function(){
+					expandCanvas();
+					contractCanvas();
+				},
+			}).drawLayers();
+
+		});
+
+		function expandCanvas(){
+			var max_x = 0;
+			var max_y = 0;
+			$(canvas_output).getLayers().forEach(function(item){
+				const x = item.x + item.width;
+				const y = item.y + item.height;
+				if(x > max_x) max_x = x;
+				if(y > max_y) max_y = y;
+			})
+			if(max_y > canvas_output.height) canvas_output.height = max_y;
+			if(max_x > canvas_output.width) canvas_output.width = max_x;
+			$(canvas_output).drawLayers();
+		}
+		function contractCanvas(){
+			var max_x = 0;
+			var max_y = 0;
+			var min_x = null;
+			var min_y = null;
+			$(canvas_output).getLayers().forEach(function(item){
+				const maxx = item.x + item.width;
+				const maxy = item.y + item.height;
+				const minx = item.x
+				const miny = item.y
+				if(maxx > max_x) max_x = maxx;
+				if(maxy > max_y) max_y = maxy;
+				if(minx < min_x) min_x = minx;
+				if(miny < min_y) min_y = miny;
+			})
+			if(min_y > canvas_output.height) canvas_output.height = min_y;
+			if(min_x > canvas_output.width) canvas_output.width = min_x;
+			if(max_y < canvas_output.height) canvas_output.height = max_y;
+			if(max_x < canvas_output.width) canvas_output.width = max_x;
+			$(canvas_output).drawLayers();
+		}
+
+		</script> 
+		<script type="text/javascript" src="./js/nav.js"></script>
+	</body>
+</html>
