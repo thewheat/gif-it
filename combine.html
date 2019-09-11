@@ -89,6 +89,11 @@
 			contractCanvas();
 		}
 
+		function updateCanvasDetails(){
+			canvas_details['max_y'] = canvas_output.height;
+			canvas_details['max_x'] = canvas_output.width;
+		}
+
 		function expandCanvas(){
 			var max_x = 0;
 			var max_y = 0;
@@ -101,6 +106,7 @@
 			if(max_y > canvas_output.height) canvas_output.height = max_y;
 			if(max_x > canvas_output.width) canvas_output.width = max_x;
 			$(canvas_output).drawLayers();
+			updateCanvasDetails();
 		}
 		function contractCanvas(){
 			var max_x = 0;
@@ -122,6 +128,7 @@
 			if(max_y < canvas_output.height) canvas_output.height = max_y;
 			if(max_x < canvas_output.width) canvas_output.width = max_x;
 			$(canvas_output).drawLayers();
+			updateCanvasDetails();
 		}
 
 		</script> 
