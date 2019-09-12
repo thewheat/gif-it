@@ -36,7 +36,8 @@
 			</h1>
 			<nav>
 			</nav>
-			<p>Paste images to add them to the canvas. Move and drag them around. Dragging them right/down will expand the canvas</p>
+			<label class="label"><strong>Upload Image:</strong> <input class="input" type="file" id="file_upload"></label>
+			<p>Upload/Paste images to add them to the canvas. Move and drag them around. Dragging them right/down will expand the canvas</p>
 			<p>To delete an image, double click it</p>
 			<p>Right click and save final image</p>
 			<h3>Your combined image</h3>
@@ -51,8 +52,35 @@
 		<script>
 		const canvas_paste = document.getElementById('canvas_paste');
 		const canvas_output = document.getElementById('canvas_output');
-		const canvas_details = {}
-		var CLIPBOARD = new CLIPBOARD_CLASS("canvas_paste", true, function(image){
+
+		const reader = new FileReader();
+		const filepicker = $("#file_upload");
+		filepicker.on('change', function(e,b){
+			if(e.target.files.count == 0) return;
+			createReader(e.target.files[0], function(image) {
+				drawImageToCanvas(image, canvas_paste);
+				addImageToCanvas();
+			});
+		});
+		function drawImageToCanvas(image, canvas){
+			const ctx = canvas.getContext('2d');
+			canvas.width = image.width;
+			canvas.height = image.height;
+			ctx.setTransform(1, 0, 0, 1, 0, 0);
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			ctx.drawImage(image, 0, 0);
+		}
+		function createReader(file, whenReadyCallback) {
+			reader.onload = function(evt) {
+				var image = new Image();
+				image.onload = function(evt) {
+					if (whenReadyCallback) whenReadyCallback(image);
+				};
+				image.src = evt.target.result;
+			};
+			reader.readAsDataURL(file);
+		}
+		function addImageToCanvas(image){
 			var x = 0,y = canvas_details['max_y'] || 0;
 			canvas_details['min_x'] = 0;
 			canvas_details['min_y'] = 0;
@@ -81,8 +109,10 @@
 					contractCanvas();
 				},
 			}).drawLayers();
+		}
 
-		});
+		const canvas_details = {}
+		var CLIPBOARD = new CLIPBOARD_CLASS("canvas_paste", true, addImageToCanvas);
 
 		function deleteImage(index){
 			$(canvas_output).removeLayer(index).drawLayers();
