@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+    <head>
+    	<title>GIF Viewer</title>
+    	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    	<style type="text/css">
+			h1 {
+				margin: 0;
+			}
+			body
+			{
+				margin: 1em;
+				text-align: center;
+			}
+
+			.hidden {
+				display: none;
+			}
+
+			.hidden.has_image {
+				display: inline;
+			}
+
+			input[type=number]{
+				width: 5em;
+			}
+
+			.inline.control {
+				display: inline;
+			}
+			button {
+				background-color: #FFFFFF;
+				border: 1px solid #cccccc;
+				border-radius: 4px;
+			}
+			button:hover {
+				background-color: #cccccc;
+			}
+			button:active {
+				background-color: #999999;
+			}
+			div.section {
+				margin-bottom: 0.5em;
+			}
+			nav {
+				margin: 0.5em;
+			}
+			nav a {
+				margin-left: 0.5em;
+			}
+
+			label {
+				font-weight: bold;
+			}
+			.hidden {
+				display: none;
+			}
+
+    	</style>
+    </head>
+    <body>
+	<div class="container">
+		<h1>
+			GIF Viewer
+		</h1>
+		<nav></nav>
+		<div class="column">
+			<label class="label">Select Image: <input class="input" type="file" id="file"></label>
+			<span id="loading" class="hidden">Loading GIF...</span>
+
+		</div>
+		<canvas class="hidden" id="canvas_paste"></canvas>
+        <script src="./js/jquery-3.3.1.min.js"></script><!-- https://jquery.com/download/ -->
+        <script src="./js/gif.js"></script><!-- https://github.com/jnordberg/gif.js -->
+        <script src="./js/image_paste.js"></script>
+        <script src="./js/libgif.js"></script>
+        <script src="./js/rubbable.js"></script>
+  
+        <div>
+			<div class="section">
+				<div>
+					<div class="inline control"><button class="button play">Play</button></div>
+					<div class="inline control"><button class="button pause">Pause</button></div>
+					<div class="inline control"><button class="button restart">Restart</button></div>
+				</div>
+				<div>
+					Current Frame: <span id="currentFrame"></span>
+				</div>
+				<div>
+					<div class="inline control"><button class="button move_to">Move to frame </button><input id="move_to" type="number"> of
+						max <span id="maxFrame"></span></div>
+				</div>
+				<div>
+					<div class="inline control"><button class="button move" data-amount="1">+1</button></div>
+					<div class="inline control"><button class="button move" data-amount="5">+5</button></div>
+					<div class="inline control"><button class="button move" data-amount="10">+10</button></div>
+					<div class="inline control"><button class="button move" data-amount="50">+50</button></div>
+					<div class="inline control"><button class="button move" data-amount="100">+100</button></div>
+					<div class="inline control"><button class="button move" data-amount="200">+200</button></div>
+					<div class="inline control"><button class="button move" data-amount="500">+500</button></div>
+					<div class="inline control"><button class="button move" data-amount="1000">+1000</button></div>
+				</div>
+				<div>
+					<div class="inline control"><button class="button move" data-amount="-1">-1</button></div>
+					<div class="inline control"><button class="button move" data-amount="-5">-5</button></div>
+					<div class="inline control"><button class="button move" data-amount="-10">-10</button></div>
+					<div class="inline control"><button class="button move" data-amount="-50">-50</button></div>
+					<div class="inline control"><button class="button move" data-amount="-100">-100</button></div>
+					<div class="inline control"><button class="button move" data-amount="-200">-200</button></div>
+					<div class="inline control"><button class="button move" data-amount="-500">-500</button></div>
+					<div class="inline control"><button class="button move" data-amount="-1000">-1000</button></div>
+				</div>
+			</div>
+			<div class="section" id="outputSection">
+				<img id="imgOutput">
+			</div>
+
+		</div>
+	  </section>
+
+
+		<script>
+
+		let navigatableGif = null;
+		const reader = new FileReader();
+		const filepicker = $("#file");
+		filepicker.on('change', function(e,b){
+			if (e.target.files.length == 0) return;
+			createReader(e.target.files[0], function(image, w, h) {
+				loadImageAndInitialiseGif('imgOutput', image.src);
+			});
+		});
+		function updateFrame(){
+			if(navigatableGif != null)
+				$("#currentFrame").text(navigatableGif.get_current_frame());
+			setTimeout(updateFrame, 100)
+		}
+		function createReader(file, whenReady) {
+		    reader.onload = function(evt) {
+		        var image = new Image();
+		        image.onload = function(evt) {
+		            var width = this.width;
+		            var height = this.height;
+		            if (whenReady) whenReady(image, width, height);
+		        };
+				image.src = evt.target.result; 
+				loadImageAndInitialiseGif('imgOutput', evt.target.result);
+		    };
+		    reader.readAsDataURL(file);
+		}
+		function loadImageAndInitialiseGif(id, src){
+			var image = document.getElementById(id);
+			if(image == null) {
+				const img = $("<img>").attr("id", id).attr("src", src);
+				const output = $("#outputSection");
+				output.find(".jsgif").remove();
+				output.append(img);
+				image = document.getElementById(id);
+			}
+			loadSrcIntoImgId(id,src);
+			image.onload = function(evt) {
+				loadNavigatableGif(id);
+			};
+		}
+		function loadSrcIntoImgId(id, src){
+			const el = document.getElementById(id);
+			if (el == null) return;
+			el.src = src;
+		}
+		function loadNavigatableGif(id){
+			const el = document.getElementById(id);
+			if (el == null) return;
+			
+			if (navigatableGif != null)
+				delete navigatableGif;
+			$("#loading").removeClass("hidden");
+			navigatableGif = new RubbableGif({ gif:  el});
+			navigatableGif.load(function(){
+				$("#maxFrame").text(navigatableGif.get_length());
+				updateFrame();
+				$("#loading").addClass("hidden");
+				toggleAppropriateMoveButtons(navigatableGif.get_length());
+			});
+
+		}
+
+		function toggleAppropriateMoveButtons(max_frame){
+			$(".button.move").each(function(){
+				var amount = parseInt($(this).data("amount"));
+				$(this).toggle((amount >= 0 && amount <= max_frame) || (amount < 0 && amount >= -1 * max_frame))
+			});
+		}
+		$(".button.current").on("click", function () {
+			if (navigatableGif == null) return;
+			$("#currentFrame").text(navigatableGif.get_current_frame());
+		});
+		$(".button.move_to").on("click", function () {
+			if (navigatableGif == null) return;
+			$("#move_to").trigger("change");
+		});
+		$("#move_to").on("change keyup", function () {
+			if (navigatableGif == null) return;
+			const frame = parseInt($(this).val());
+			if (!isNaN(frame) && frame >= 0 && frame <= navigatableGif.get_length())
+				navigatableGif.move_to(frame);
+		});
+
+		$(".button.move").on("click", function(){
+			if(navigatableGif == null) return;
+			navigatableGif.move_relative($(this).data("amount"));
+		});
+		$(".button.pause").on("click", function(){
+			if(navigatableGif == null) return;
+			navigatableGif.pause();
+		});
+		$(".button.play").on("click", function(){
+			if(navigatableGif == null) return;
+			navigatableGif.play();
+		});
+		$(".button.restart").on("click", function(){
+			if(navigatableGif == null) return;
+			navigatableGif.move_to(0);
+		});
+
+		var CLIPBOARD = new CLIPBOARD_CLASS("canvas_paste", true, function(image){
+			loadImageAndInitialiseGif('imgOutput', image.src);
+		});
+
+		</script> 
+		<script type="text/javascript" src="./js/nav.js"></script>
+    </body>
+</html>

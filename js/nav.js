@@ -4,6 +4,7 @@ const NAV = {
  "Flip": "flip.html",
  "Rotate": "rotate.html",
  "Resize": "resize.html",
+ "GIF Viewer": "gifview.html",
  "Party": "party.html",
  "Deal with it": "dwi.html",
 }
