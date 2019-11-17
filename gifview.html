@@ -65,9 +65,11 @@
 		</h1>
 		<nav></nav>
 		<div class="column">
-			<label class="label">Select Image: <input class="input" type="file" id="file"></label>
+			<div>
+				<div class="inline"><label><input id="constrainWidth" type="checkbox">Fit GIF width to screen</label></div>
+			</div>
+			<label class="label">Select GIF: <input class="input" type="file" id="file"></label>
 			<span id="loading" class="hidden">Loading GIF...</span>
-
 		</div>
 		<canvas class="hidden" id="canvas_paste"></canvas>
         <script src="./js/jquery-3.3.1.min.js"></script><!-- https://jquery.com/download/ -->
@@ -174,16 +176,24 @@
 			if (navigatableGif != null)
 				delete navigatableGif;
 			$("#loading").removeClass("hidden");
-			navigatableGif = new RubbableGif({ gif:  el});
+
+			var options = { gif: el };
+			if(constrainWidth()) options.max_width = max_canvas_width();
+
+			navigatableGif = new RubbableGif(options);
 			navigatableGif.load(function(){
 				$("#maxFrame").text(navigatableGif.get_length());
 				updateFrame();
 				$("#loading").addClass("hidden");
 				toggleAppropriateMoveButtons(navigatableGif.get_length());
 			});
-
 		}
-
+		function constrainWidth(){
+			return $("#constrainWidth").is(":checked");
+		}
+		function max_canvas_width(){
+			return $("#outputSection").width();
+		}
 		function toggleAppropriateMoveButtons(max_frame){
 			$(".button.move").each(function(){
 				var amount = parseInt($(this).data("amount"));
