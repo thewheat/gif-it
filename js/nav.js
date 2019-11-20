@@ -5,6 +5,7 @@ const NAV = {
  "Rotate": "rotate.html",
  "Resize": "resize.html",
  "GIF Viewer": "gifview.html",
+ "GIF to Video": "giftovid.html",
  "Party": "party.html",
  "Deal with it": "dwi.html",
 }
@@ -16,5 +17,3 @@ for (var k in NAV){
 	a.href = NAV[k];
 	nav_el.appendChild(a);
 }
-
-

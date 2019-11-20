@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>GIF Viewer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style type="text/css">
+        h1 {
+            margin: 0;
+        }
+
+        body {
+            margin: 1em;
+            text-align: center;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .hidden.has_image {
+            display: inline;
+        }
+
+        video {
+            max-width: 100%;
+        }
+
+        div.section {
+            margin-bottom: 0.5em;
+        }
+
+        nav {
+            margin: 0.5em;
+        }
+
+        nav a {
+            margin-left: 0.5em;
+        }
+
+        label {
+            font-weight: bold;
+        }
+
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>
+            GIF to Video
+        </h1>
+        <nav></nav>
+        <div class="column">
+            <label class="label">Select GIF: <input class="input" type="file" id="file"></label>
+            <div id="loading"></div>
+        </div>
+        <canvas class="hidden" id="canvas_paste"></canvas>
+        <script src="./js/jquery-3.3.1.min.js"></script><!-- https://jquery.com/download/ -->
+        <script src="./js/libgif.js"></script>
+
+
+        <div class="section">
+            <div class="hidden" id="outputSection">
+            </div>
+            <video id="recorded" loop autoplay></video>
+        </div>
+        </section>
+
+
+        <script>
+            // https://webrtc.github.io/samples/src/content/capture/canvas-record/
+
+            let navigatableGif = null;
+            const reader = new FileReader();
+            const filepicker = $("#file");
+            filepicker.on('change', function (e, b) {
+                if (e.target.files.length == 0) return;
+                createReader(e.target.files[0], function (image, w, h) {
+                    loadImageAndInitialiseGif('imgOutput', image.src);
+                });
+            });
+            function createReader(file, whenReady) {
+                reader.onload = function (evt) {
+                    var image = new Image();
+                    image.onload = function (evt) {
+                        var width = this.width;
+                        var height = this.height;
+                        if (whenReady) whenReady(image, width, height);
+                    };
+                    image.src = evt.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+            function loadImageAndInitialiseGif(id, src) {
+                status("Loading GIF...");
+                var image = document.getElementById(id);
+                if (image == null) {
+                    const img = $("<img>").attr("id", id).attr("src", src);
+                    const output = $("#outputSection");
+                    output.find(".jsgif").remove();
+                    output.append(img);
+                    image = document.getElementById(id);
+                }
+                loadSrcIntoImgId(id, src);
+                image.onload = function (evt) {
+                    loadNavigatableGif(id);
+                };
+            }
+            function loadSrcIntoImgId(id, src) {
+                const el = document.getElementById(id);
+                if (el == null) return;
+                el.src = src;
+            }
+
+            function loadNavigatableGif(id) {
+                const el = document.getElementById(id);
+                if (el == null) return;
+
+                if (navigatableGif != null)
+                    delete navigatableGif;
+                
+                var time = (new Date()).getTime();
+                last_gif_load_time = time;
+                var options = { gif: el, on_end: function(){
+                    if(time == last_gif_load_time)
+                        on_end();
+                } };
+
+                navigatableGif = new SuperGif(options);
+                navigatableGif.load(function () {
+                    startVideoConversion();
+                });
+            }
+
+            
+            function status(text){
+                $('#loading').text(text);
+            }
+
+            let callbacks = []
+            let last_gif_load_time = null;
+            let canvas_gif = null;
+            let stream = null;
+            const video = document.querySelector('video');
+            let mediaRecorder = null;
+            let recordedBlobs = null;;
+            function on_end() {
+                console.log("On end of GIF loop....");
+                if (is_recording()) {
+                    stopVideoConversion();
+                }
+            }
+
+            function is_recording() {
+                return mediaRecorder && mediaRecorder.state == "recording";
+            }
+
+            function startRecording() {
+                let options = { mimeType: 'video/webm' };
+                recordedBlobs = [];
+                try {
+                    mediaRecorder = new MediaRecorder(stream, options);
+                } catch (e0) {
+                    try {
+                        options = { mimeType: 'video/webm,codecs=vp9' };
+                        mediaRecorder = new MediaRecorder(stream, options);
+                    } catch (e1) {
+                        try {
+                            options = 'video/vp8'; // Chrome 47
+                            mediaRecorder = new MediaRecorder(stream, options);
+                        } catch (e2) {
+                            alert('MediaRecorder is not supported by this browser.\n\n' +
+                                'Try Firefox 29 or later, or Chrome 47 or later, ' +
+                                'with Enable experimental Web Platform features enabled from chrome://flags.');
+                            console.error('Exception while creating MediaRecorder:', e2);
+                            return;
+                        }
+                    }
+                }
+                console.log(options);
+                mediaRecorder.onstop = handleStop;
+                mediaRecorder.ondataavailable = handleDataAvailable;
+                mediaRecorder.start(100); // collect 100ms of data
+            }
+
+            function startVideoConversion() {
+                status("Converting GIF to video");
+                mediaRecorder = null;
+                recordedBlobs = null;
+                stream = null;
+
+                canvas_gif = document.querySelector('.jsgif canvas');
+                stream = canvas_gif.captureStream();
+                navigatableGif.move_to(0);
+                startRecording();
+            }
+            function stopVideoConversion() {
+                status("");
+                stopRecording();
+            }
+            function stopRecording() {
+                mediaRecorder.stop();
+                video.controls = true;
+                video.onload = function () {
+                    this.play();
+                };
+            }
+
+            function handleDataAvailable(event) {
+                if (event.data && event.data.size > 0) {
+                    recordedBlobs.push(event.data);
+                }
+            }
+
+            function handleStop(event) {
+                var superBuffer = new Blob(recordedBlobs, { type: 'video/webm' });
+                video.src = window.URL.createObjectURL(superBuffer);
+            }
+
+
+
+        </script>
+        <script type="text/javascript" src="./js/nav.js"></script>
+</body>
+
+</html>
