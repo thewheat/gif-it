@@ -1,4 +1,5 @@
 const NAV = {
+ "Colour Picker": "colourpicker.html",
  "Combine": "combine.html",
  "Crop": "crop.html",
  "Flip": "flip.html",
